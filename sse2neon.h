@@ -4296,6 +4296,45 @@ FORCE_INLINE __m128 _mm_cvt_pi2ps(__m128 a, __m64 b)
                      vget_high_f32(vreinterpretq_f32_m128(a))));
 }
 
+// Convert packed single-precision (32-bit) floating-point elements in a to
+// packed 32-bit integers, and store the results in dst.
+//
+//   FOR j := 0 to 1
+//       i := 32*j
+//       dst[i+31:i] := Convert_FP32_To_Int32(a[i+31:i])
+//   ENDFOR
+//
+// https://software.intel.com/sites/landingpage/IntrinsicsGuide/#text=_mm_cvt_ps2pi
+FORCE_INLINE __m64 _mm_cvt_ps2pi(__m128 a)
+{
+#if defined(__aarch64__)
+    return vreinterpret_m64_s32(
+        vget_low_s32(vcvtnq_s32_f32(vreinterpretq_f32_m128(a))));
+#else
+    int32_t res[2];
+    float32_t *data = (float32_t *) &a;
+    float32_t diff0 = data[0] - floor(data[0]);
+    float32_t diff1 = data[1] - floor(data[1]);
+    if (diff0 > 0.5)
+        res[0] = (int32_t) ceil(data[0]);
+    else if (diff0 == 0.5) {
+        int32_t f = (int32_t) floor(data[0]);
+        int32_t c = (int32_t) ceil(data[0]);
+        res[0] = c & 1 ? f : c;
+    } else
+        res[0] = (int32_t) floor(data[0]);
+    if (diff1 > 0.5)
+        res[1] = (int32_t) ceil(data[1]);
+    else if (diff1 == 0.5) {
+        int32_t f = (int32_t) floor(data[1]);
+        int32_t c = (int32_t) ceil(data[1]);
+        res[1] = c & 1 ? f : c;
+    } else
+        res[1] = (int32_t) floor(data[1]);
+    return vreinterpret_m64_s32(vld1_s32(res));
+#endif
+}
+
 // Convert the signed 32-bit integer b to a single-precision (32-bit)
 // floating-point element, store the result in the lower element of dst, and
 // copy the upper 3 packed elements from a to the upper elements of dst.
